@@ -165,16 +165,32 @@ python -m qwen_glasses_lab.adb_media_sync --dry-run --limit 10
 python -m qwen_glasses_lab.adb_media_sync --limit 20
 ```
 
-### 4.3 使用端侧自定义唤醒词触发器
+### 4.3 使用端侧自定义唤醒词匹配与实时分发闭环
 ```python
-from qwen_glasses_lab import WakeWordConfig, detect_wake_word
+from qwen_glasses_lab import WakeWordConfig, WakeWordDispatcher
 
-ww_cfg = WakeWordConfig(wake_words=["Jarvis", "小智"])
-res = detect_wake_word("Jarvis，把刚才拍的白板照片整理成待办", ww_cfg)
+ww_cfg = WakeWordConfig(
+    wake_words=["Jarvis", "小智"],
+    cooldown_seconds=3.0,   # 防抖防回声冷却窗口
+    ack_reply="我在，请讲。", # 仅喊唤醒词时的 0-Token 即刻应答
+    tts_enabled=True,       # 可选：通过系统音频（含蓝牙眼镜扬声器）播报应答
+)
 
-if res.matched:
-    print("命中唤醒词:", res.wake_word)       # Jarvis
-    print("纯净指令正文:", res.command_text)   # 把刚才拍的白板照片整理成待办
+def on_command(match):
+    # 在此接入任意本地/远程 LLM、MCP 工具路由、Webhook 或服务器控制脚本
+    return f"已收到指令：{match.command_text}"
+
+dispatcher = WakeWordDispatcher(ww_cfg, command_handler=on_command)
+
+# 1. 仅喊唤醒词 -> 0-Token 即刻应答，不触发 command_handler
+print(dispatcher.handle_transcript("Jarvis"))
+
+# 2. 喊「唤醒词 + 指令」 -> 自动剥离标点并路由至 on_command
+res = dispatcher.handle_transcript("Jarvis，把刚才拍的白板照片整理成待办")
+if res.dispatched:
+    print("命中唤醒词:", res.wake_word)      # Jarvis
+    print("纯净指令正文:", res.command_text)  # 把刚才拍的白板照片整理成待办
+    print("应答文本:", res.reply_text)
 ```
 
 ---

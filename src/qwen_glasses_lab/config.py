@@ -24,6 +24,9 @@ class WakeWordConfig:
     wake_words: List[str] = field(default_factory=lambda: list(DEFAULT_WAKE_WORDS))
     case_sensitive: bool = False
     strip_leading_punctuation: bool = True
+    cooldown_seconds: float = 3.0
+    ack_reply: str = "我在，请讲。"
+    tts_enabled: bool = False
 
 
 @dataclass

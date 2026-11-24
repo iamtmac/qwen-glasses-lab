@@ -625,3 +625,91 @@ def test_gcsp_v1_command_frame_passes_safety_guard() -> None:
     for ns, cmd in [(NameSpace.OTA, 0x01), (NameSpace.SHUTDOWN, 0x01), (NameSpace.FACTORY_TEST, 0x01), (0, 0x26)]:
         with pytest.raises(UnsafeCommandBlockedError):
             build_command_frame_v1(ns, cmd, b"\x00")
+
+
+# ---------------------------------------------------------------------------
+# 端侧自定义唤醒词匹配与实时分发闭环
+# ---------------------------------------------------------------------------
+
+
+def test_wake_word_matching_word_boundary_and_longest_first() -> None:
+    """长词优先且英文遵守词边界，不误触子串。"""
+    from qwen_glasses_lab import WakeWordConfig, detect_wake_word
+
+    cfg = WakeWordConfig(wake_words=["Assistant", "Hey Assistant", "小助手"])
+    assert not detect_wake_word("This is an assistantship program", cfg).matched
+    m1 = detect_wake_word("Hey Assistant，打开客厅灯", cfg)
+    assert m1.matched is True
+    assert m1.wake_word == "Hey Assistant"
+    assert m1.command_text == "打开客厅灯"
+
+    m2 = detect_wake_word("小助手：帮我记录刚才的白板内容", cfg)
+    assert m2.matched is True
+    assert m2.wake_word == "小助手"
+    assert m2.command_text == "帮我记录刚才的白板内容"
+
+
+def test_wake_word_dispatcher_ack_route_cooldown_and_tts() -> None:
+    """验证 0-Token 空指令应答、指令路由、3 秒防抖冷却及 TTS 钩子。"""
+    from qwen_glasses_lab import WakeWordConfig, WakeWordDispatcher
+
+    now = [100.0]
+    handled: list[str] = []
+    spoken: list[str] = []
+
+    cfg = WakeWordConfig(
+        wake_words=["Jarvis", "小智"],
+        cooldown_seconds=3.0,
+        ack_reply="我在，请讲。",
+        tts_enabled=True,
+    )
+    dispatcher = WakeWordDispatcher(
+        cfg,
+        command_handler=lambda m: (handled.append(m.command_text), f"已执行：{m.command_text}")[1],
+        tts_speaker=spoken.append,
+        clock=lambda: now[0],
+    )
+
+    # 1. 未命中：0-Token 静默放行
+    r0 = dispatcher.handle_transcript("今天天气不错")
+    assert r0.matched is False and r0.dispatched is False and r0.reason == "not_matched"
+    assert handled == [] and spoken == []
+
+    # 2. 仅喊唤醒词：0-Token 即刻应答，不触发 command_handler
+    r1 = dispatcher.handle_transcript("Jarvis")
+    assert r1.matched is True and r1.dispatched is True and r1.reason == "ack_only"
+    assert r1.reply_text == "我在，请讲。"
+    assert handled == [] and spoken == ["我在，请讲。"]
+
+    # 3. 冷却窗口内重复相同转写：防抖拦截
+    now[0] = 101.5
+    r2 = dispatcher.handle_transcript("jarvis")
+    assert r2.matched is True and r2.dispatched is False and r2.reason == "cooldown"
+    assert len(spoken) == 1
+
+    # 4. 冷却期过后喊「唤醒词 + 指令」：正确路由并播报
+    now[0] = 105.0
+    r3 = dispatcher.handle_transcript("小智，查询服务器 CPU 负载")
+    assert r3.matched is True and r3.dispatched is True and r3.reason == "command_handled"
+    assert r3.command_text == "查询服务器 CPU 负载"
+    assert r3.reply_text == "已执行：查询服务器 CPU 负载"
+    assert handled == ["查询服务器 CPU 负载"]
+    assert spoken[-1] == "已执行：查询服务器 CPU 负载"
+
+
+def test_wake_word_dispatcher_handler_error_degrades_safely() -> None:
+    """外部指令回调异常时安全降级，绝不中断实时音频监听主循环。"""
+    from qwen_glasses_lab import WakeWordConfig, WakeWordDispatcher
+
+    def broken_handler(_match):
+        raise RuntimeError("downstream unreachable")
+
+    dispatcher = WakeWordDispatcher(
+        WakeWordConfig(wake_words=["Jarvis"], tts_enabled=False),
+        command_handler=broken_handler,
+    )
+    res = dispatcher.handle_transcript("Jarvis，重启构建节点")
+    assert res.matched is True
+    assert res.dispatched is True
+    assert res.reason == "handler_error"
+    assert "稍后再试" in res.reply_text

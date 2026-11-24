@@ -81,9 +81,12 @@ from .sta_sync_orchestrator import (
     wake_glasses_sta_lan,
 )
 from .wake_word import (
+    WakeWordDispatchResult,
+    WakeWordDispatcher,
     WakeWordMatch,
     detect_wake_word,
     filter_wake_word_commands,
+    speak_local_tts,
 )
 from .webfs_readonly_client import (
     SyncCursorStore,
@@ -113,9 +116,12 @@ __all__ = [
     "StaWakeResult",
     "SyncPolicyConfig",
     "WakeWordConfig",
+    "WakeWordDispatchResult",
+    "WakeWordDispatcher",
     "WakeWordMatch",
     "detect_wake_word",
     "filter_wake_word_commands",
+    "speak_local_tts",
     "parse_sta_wake_events",
     "sync_via_ble_sta",
     "wake_glasses_sta_lan",

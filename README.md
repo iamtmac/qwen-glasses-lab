@@ -4,7 +4,8 @@
 
 无需 Root 手机、无需刷机改固件、无需依赖云端接口，即可通过 macOS 原生 `CoreBluetooth` (`LE L2CAP CoC`, `PSM 130`) 引导眼镜接入当前局域网，并通过只读 `WebDAV`（`genie_webfs`）或无线 `ADB` 安全增量同步眼镜中的照片、视频与 16kHz 录音，同时内置可配置的端侧自定义唤醒词触发引擎。
 
-> 完整配置项说明、编排示例与常见排查请阅读：[docs/OPEN_SOURCE_USER_MANUAL.md](docs/OPEN_SOURCE_USER_MANUAL.md)
+> - **产品蓝图与演进规划**（去 App 化直连电脑/服务器、第一视角 AI 上下文助手与跨设备控制）：[docs/PRODUCT_BLUEPRINT.md](docs/PRODUCT_BLUEPRINT.md)
+> - **开源使用手册**（配置项说明、编排示例与常见排查）：[docs/OPEN_SOURCE_USER_MANUAL.md](docs/OPEN_SOURCE_USER_MANUAL.md)
 
 ---
 
@@ -17,8 +18,8 @@
   - **BLE 指令白名单（`safety_guard.py`）**：严格拦截固件升级（`OTA = 18`）、关机重启（`SHUTDOWN = 21`）、产测（`FACTORY_TEST = 28`）及一切未列入白名单的控制命令。
   - **WebDAV / ADB 只读锁**：仅允许 `PROPFIND`、`GET`、`HEAD`、`OPTIONS` 与 `adb pull`，物理阻断 `DELETE`、`PUT`、`MKCOL`、`MOVE`、`POST`、`rm`、`push` 等写删操作，绝不篡改设备原件。
   - **凭据零落盘**：局域网 Wi-Fi 密码与可选 `bleKey` 仅在单次运行时内存注入，不写入配置文件、日志或同步游标。
-- **0-Token 端侧自定义唤醒词匹配器**
-  - 支持在转写文本流层配置任意中英文自定义唤醒词列表，长词优先、英文词边界防误触，并自动剥离前导标点输出纯净指令正文。
+- **0-Token 端侧自定义唤醒词匹配与实时分发引擎**
+  - 支持在转写文本流层配置任意中英文自定义唤醒词列表，长词优先、英文词边界防误触；内置线程安全 `WakeWordDispatcher`（含 3 秒防抖防回声冷却锁、仅唤醒词 0-Token 即刻应答、自定义指令回调路由与可选本机 TTS 播报）。
 
 ---
 
@@ -30,7 +31,8 @@ qwen-glasses-lab/
 ├── LICENSE                                    # MIT 开源协议
 ├── pyproject.toml                             # Python 包构建配置
 ├── docs/
-│   └── OPEN_SOURCE_USER_MANUAL.md             # 开源使用手册（19 项配置、示例与排错）
+│   ├── PRODUCT_BLUEPRINT.md                   # 产品设计蓝图（去 App 化 AI 上下文助手与跨设备演进规划）
+│   └── OPEN_SOURCE_USER_MANUAL.md             # 开源使用手册（配置项、示例与排错）
 ├── src/qwen_glasses_lab/
 │   ├── __init__.py                            # 统一导出入口
 │   ├── config.py                              # 解耦配置模型（JSON + 环境变量）
