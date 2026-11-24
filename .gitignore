@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# macOS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Swift build artifacts & signed app bundles
+swift_bridge/glasses-ble-bridge
+swift_bridge/*.app/
+swift_bridge/_CodeSignature/
+
+# Local media, captures, private configs & third-party tools
+synced_media/
+captures/
+tools/
+glasses_config.json
+*.local.json
+.env
